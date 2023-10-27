@@ -1,0 +1,124 @@
+--chapter 09 -- Fast Data Loading and Bulk Ingestion in snowflake
+
+--how to list user stage
+list @~;
+
+ -- creating a table stage -- automatically created when we create a table
+create table customer123 (custid int);
+
+select * from customer123
+
+--how to list a table stage
+--list @%[tablename]
+list @%customer123; 
+
+-- show stages only show named stages
+show stages;
+
+--list external names stage
+list @demo_stage;
+
+ --very simple construct to create internal stage
+ create stage "db_name"."schema_name"."stage_name" comment='any comment';
+
+ --show stages like '%03%'
+ list @~;
+
+ --lets run a remove command to clean it up
+ remove @~/ch09;   -- this command will remove ch09 folder and all files inside it
+
+--lets put some files in stages
+
+--put file://G:\Learning\Snowflake\test.csv @DEMO_STAGE;
+--put file://G:\Learning\Snowflake\test.csv @~/ch09/;
+--put file://G:\Learning\Snowflake\test.csv @~/ch09/html auto_compress=false;
+ 
+ list @~;
+
+ --in place of like statement, you have to use pattern if you have to search someting within the folder or subfolder
+list @~ pattern='.*test.*'
+list @~ pattern='.*.gz'
+list @~ pattern='.*csv'
+
+ -- how to put a file inside table stage
+ --put file://G:\Learning\Snowflake\test.csv @%customer123/ch09/;
+
+ list @%customer123;
+ list @%customer123/ch09;
+ list @%customer123 pattern ='.*.gz'
+
+ -- removing files from stages
+ remove @~/ch09/;
+ remove @%customer123/ch09/;
+
+ -- following command will remove everything insider customer123 tables stage
+ remove @%customer123;
+
+ use role accountadmin;
+ 
+ --Quirying data from table stage
+ create or replace table customer_parquet_ff(
+ my_data variant
+ )
+ stage_file_format=(type=parquet);
+
+ --load parquet data using put command
+
+ list @%customer_parquet_ff;
+
+ --now lets query data using $notation
+ select 
+ metadata$filename,
+ metadata$file_row_number,
+ $1:name::varchar
+from @%customer_parquet_ff;
+
+--parquet file format has only one column called $1
+-- Run copy command to load data to table
+copy into customer_parquet_ff
+from @%customer_parquet_ff/filename.parquet;
+
+--copy into store metadata in copy history and does not load data - to avoid potential duplicacy
+-- to forcefully load data use force=true command 
+
+ --copy history table
+ select * from snowflake.account_usage.copy_history;
+
+ --load history table
+ select * from snowflake.account_usage.load_history;
+
+ select * from snowflake.account_usage.stages;
+
+ -- file format and names stage files
+ ---------------------------------------
+
+ --create a file format
+ create or replace file format my_csv_fff type='csv';
+
+ show file formats;
+
+ create or replace stage stg_csv
+ file_format =my_csv_fff
+comment='stage will use csv file format';
+
+ --if file format was not defined during stage creation and if it was generic stage
+ --we need to attach file format while copy into statement
+
+ --file format required
+ copy into table from @stg
+ file_format=(format_name=my_csv_format);
+
+ --parquet file has only $1 notation
+
+ //=================
+--following king of pattern can be used to copy data to stage
+copy into t1 from @%////
+files=('mydata1.csv','mydata2.csv')
+
+--check the error file without loading the file
+copy into 
+from 
+files
+validation_mode='RETURN_ERRORS';
+
+   

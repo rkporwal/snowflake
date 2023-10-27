@@ -1,0 +1,101 @@
+create or replace database CH17_DB;
+create or replace schema CH17_SCHEMA;
+
+create or replace  table customer (
+    customer_id int,
+    salutation varchar,
+    first_name varchar,
+    last_name varchar,
+    birth_day int,
+    birth_month int,
+    birth_year int,
+    birth_country varchar,
+    email_address varchar,
+    cust_status varchar
+) comment ='this is simple customer table';
+
+insert into customer (customer_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(101,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(102,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive'),
+(103,'Mr.', 'Cust-3','LName-3',21,2,1998,'UK','cust-3.lname-3@gmail.com','Blocked'),
+(104,'Mr.', 'Cust-4','LName-4',19,9,1997,'USA','cust-4.lname-4@gmail.com','Active'),
+(105,'Mr.', 'Cust-5','LName-5',11,3,1997,'Canada','cust-5.lname-5@gmail.com','Unknown');
+
+-- lets validate the data
+select * from customer;
+
+--lets create a stream object to track changes in souce customer table
+create or replace stream customer_stream on table customer;
+
+--lets execute select sql on customer_stream
+select * from customer_stream;
+
+--we can see there are 3 additional fields on stream table
+--METADATA$ACTION
+--METADATA$ISUPDATE
+--METADATA$ROW_ID
+
+--there is no records as no insert,update,delete performed on customer table
+--lets perform some dm l operation
+insert into customer (customer_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(106,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(107,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive');
+
+select * from customer;
+select * from customer_stream;
+
+--deleting a customer
+delete from customer where customer_id=101;
+
+
+select * from customer;
+select * from customer_stream;
+
+--updating one record
+update customer
+set cust_status='Active'
+where customer_id=102;
+
+select * from customer;
+select * from customer_stream order by customer_id;
+
+---------
+show streams;
+
+desc stream customer_stream;
+
+--get stream ddl
+select get_ddl('stream','customer_stream');
+
+--run alter command
+alter stream customer_stream set comment = 'customer table with 14 days cdc period';
+desc stream customer_stream;
+
+alter stream customer_stream unset comment;
+desc stream customer_stream;
+
+drop stream ;
+
+-------multiple streams
+create or replace stream customer_stream_02 on table customer;
+
+show streams;
+
+select * from customer;
+select * from customer_stream;
+select * from customer_stream_02;
+
+
+insert into customer (customer_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(108,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(109,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive');
+
+select * from customer;
+select * from customer_stream;
+select * from customer_stream_02;
+
+----------
+
