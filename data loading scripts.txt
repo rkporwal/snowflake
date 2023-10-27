@@ -1,0 +1,73 @@
+use warehouse my_vm_demo;
+
+create or replace database test_database
+comment='this is test database';
+
+create or replace schema test_schema
+comment='this is test schema';
+
+use database test_database;
+use schema test_schema;
+
+
+create or replace stage my_stage
+comment='this stage will be used to load csv files';
+
+-- Run below command using CLI tool
+put file://G:\Learning\Data_Sets\NorthWind\categories.csv @my_stage;
+put file://G:\Learning\Data_Sets\NorthWind\products.csv @my_stage;
+
+desc stage my_stage;
+
+list @my_stage;
+
+-----
+create table categories 
+(
+CategoryID varchar(2000)
+,CategoryName varchar(2000)
+,Description varchar(2000)
+,Picture		varchar(2000)	
+);
+
+create or replace file format ff_csv_pipe_delimited
+type ='csv'
+SKIP_HEADER =1
+FIELD_DELIMITER='|' ;
+
+copy into categories from @my_stage/categories.csv 
+file_format=ff_csv_pipe_delimited;
+
+select * from categories;
+truncate table categories;
+
+create or replace table products
+(
+ProductID varchar(2000)
+,ProductName varchar(2000)
+,SupplierID varchar(2000)
+,CategoryID varchar(2000)
+,QuantityPerUnit varchar(2000)
+,UnitPrice varchar(2000)
+,UnitsInStock varchar(2000)
+,UnitsOnOrder varchar(2000)
+,ReorderLevel varchar(2000)
+,Discontinued varchar(2000)
+);
+
+copy into products from @my_stage/products.csv 
+file_format=ff_csv_pipe_delimited;
+
+select * from products;
+
+
+select c.categoryname,count(*) as "total products"
+from categories c
+left join products p on c.categoryid=p.categoryid
+group by c.categoryname
+order by categoryname;
+
+select p.*
+from categories c
+left join products p on c.categoryid=p.categoryid
+where categoryname='Beverages';
