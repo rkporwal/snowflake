@@ -1,0 +1,416 @@
+--user defined functions
+
+-- creating a simple orders table
+create or replace table orders(
+    order_id number,
+    customer_id_fk number,
+    item_id_fk number,
+    retail_price number(10,2),
+    purchase_price number(10,2),
+    sold_quantity number(3),
+    country_code varchar(2)
+);
+
+-- inserting handful records
+insert into orders 
+(order_id, customer_id_fk, item_id_fk,retail_price,purchase_price, sold_quantity,country_code)
+values
+(1,1,1,99.2,89.6,2,'US'),
+(2,8,2,17.1,11,10,'IN'),
+(3,5,1,827,900.99,5,'JP'),
+(4,10,4,200,172,7,'DE');
+
+-- lets check the records
+select * from orders;
+
+create or replace function 
+calculate_profit(retail_price number, purchase_price number, sold_quantity number)
+returns number(10,2)
+comment = 'this is simple profit calculator'
+as 
+$$
+ select ((retail_price - purchase_price) * sold_quantity));
+$$;
+
+
+select 
+    item_id_fk,
+    retail_price,
+    purchase_price, 
+    sold_quantity, 
+    calculate_profit(retail_price,purchase_price, sold_quantity) as profit_udf 
+from orders ;
+
+select 
+    item_id_fk,
+    retail_price,
+    purchase_price, 
+    sold_quantity,
+    ((retail_price - purchase_price) * sold_quantity) as profit
+from orders ;
+
+-- create bit more complex udf
+create or replace function country_name(country_code string)
+returns string
+as 
+$$
+ select country_code || '-' ||case
+        when country_code='US' then 'USA'
+        when country_code='IN' then 'India'
+        when country_code='JP' then 'Japan'
+        when country_code='DE' then 'Germany'
+        else 'Unknown'
+    end
+$$;
+
+select 
+    item_id_fk,
+    retail_price,
+    purchase_price, 
+    sold_quantity,
+    calculate_profit(retail_price,purchase_price, sold_quantity) as profit_udf ,
+    country_name(country_code) as country_udf
+ from orders ;
+
+ select 
+    item_id_fk,
+    retail_price,
+    purchase_price, 
+    sold_quantity,
+    ((retail_price - purchase_price) * sold_quantity) as profit ,
+    country_code || '-' ||case
+        when country_code='US' then 'USA'
+        when country_code='IN' then 'India'
+        when country_code='JP' then 'Japan'
+        when country_code='DE' then 'Germany'
+        else 'Unknown'
+        end as country
+ from orders ;
+
+ -- now lets understand show and desc function features.
+show functions;
+
+-- filter by using object name
+show functions like 'COUNTRY%';
+show functions like'%PROFIT';
+
+-- how to describe a function using desc function sql keywords
+desc function country_name;
+desc function country_name(string);
+
+-- how will you filter builtin vs user defined
+-- lets use result scan table function and use the result as table data
+show functions;
+select * from table(result_scan( LAST_QUERY_ID()));
+select * 
+    from table(result_scan(query_id => '01b009d2-3201-f1d9-0001-7cfa000460ee')) t 
+    where "is_builtin" = 'N';
+
+select * from table(result_scan('01b009d2-3201-f1d9-0001-7cfa000460ee')) t 
+    where 
+    "name" in ('CALCULATE_PROFIT','COUNTRY_NAME') ;
+
+
+select 
+        "language",
+        "schema_name" , 
+        "is_builtin", 
+        count(1) 
+    from table(result_scan('01b009d2-3201-f1d9-0001-7cfa000460ee')) t 
+    group by "language","schema_name" , "is_builtin";
+  
+--------------------------------------------------------------------
+---- java script based udf
+--------------------------------------------------------------------
+-- creating a simple SQL udf
+create or replace secure function simple_sql_udf()
+returns string
+language SQL
+comment = 'This is simple sql language udf'
+as
+$$
+    select 'simple sql language udf'
+$$;
+
+-- creating a simple javascript udf
+create or replace secure function simple_js_udf()
+returns string
+language javascript
+comment = 'This is simple JavaScript language udf'
+as
+$$
+    return 'simple javascript language udf'
+$$;
+
+-- just example, we will cover later in this video
+create function my_java_udf()
+    returns double
+    language java
+    imports = ('@~/java-udf/MyUDF.jar')
+    handler = 'MyJavaUDF.myHandler';
+
+-- see the function output
+select simple_sql_udf(),simple_js_udf();
+
+-- lets see them and validate the columns 
+-- and how the language is captured.
+show functions like 'SIMPLE%';
+
+
+-- lets describe the 
+desc function simple_sql_udf();
+desc function simple_js_udf();
+
+---How to use not-null property in Snowflake UDFs
+-- creating a javascript function with not null specification
+create or replace function not_null_udf()
+returns string not null
+language SQL
+as
+$$
+    return null
+$$;
+
+-- lets see how does it capture
+desc function not_null_udf();
+
+-- call the function and observer the behaviour
+select not_null_udf();
+
+-- lets fix it
+create or replace function not_null_udf()
+returns string  not null
+language javascript
+as
+$$
+    return null
+$$;
+
+-- rerun the function
+select not_null_udf();
+
+-- so this is how it works. This is very similar to strict keyword in stored procedure
+-- which we covered in previous chapter (ch-21.1)
+-- https://youtu.be/CsH2sB6gwlw
+
+-- lets see if this works in SQL language
+create or replace function not_null_sql_udf()
+RETURNS string
+comment = 'this is simple not null enforcement test for SQL function'
+as
+$$
+    select null
+$$;
+
+desc function not_null_sql_udf();
+select not_null_sql_udf();
+
+-- now add the paramter and see the behaviour
+-- it allows to add the keyword but does not enforce.
+
+--------How to use secure property in Snowflake UDFs
+-- creating a secure SQL udf
+create or replace secure function secure_sql_udf()
+returns string
+as
+$$
+    select 'wow! my secure scalar sql udf worked'
+$$;
+
+-- call the function and observer the behaviour
+select secure_sql_udf();
+
+-- same for javascript
+create or replace secure function secure_js_udf()
+returns string null
+language javascript
+as
+$$
+    return 'wow! my secure scalar JavaScript udf worked'
+$$;
+
+-- run them together the function
+select secure_sql_udf(),secure_js_udf();
+
+desc function secure_sql_udf();
+
+show functions like 'SECURE%';
+
+-- lets understand the privacy part
+-- use role public; -- this will not work in snowsight under folder. 
+select current_role();
+select secure_sql_udf(),secure_js_udf();
+
+-- lets create a non secure function first
+create or replace function non_secure_udf()
+returns string null
+language javascript
+as
+$$
+    return 'security breach! Not secure'
+$$;
+
+-- lets give usgae grant to public role
+grant usage on database DEMO_DB to role "PUBLIC";
+grant usage on schema DEMO_DB.public to role "PUBLIC";
+
+grant usage on function secure_sql_udf() to role "PUBLIC";
+grant usage on function secure_js_udf() to role "PUBLIC";
+grant usage on function non_secure_udf() to role "PUBLIC";
+
+grant USAGE on warehouse compute_wh to role "PUBLIC";
+
+select current_role();
+use WAREHOUSE COMPUTE_WH;
+select secure_sql_udf(),secure_js_udf(),non_secure_udf();
+
+desc function non_secure_udf();
+desc function secure_js_udf();
+
+-- let test the get_ddl with admin role
+select get_ddl('function','non_secure_udf()');
+select get_ddl('function','secure_js_udf()');
+
+-- now change role to accout admin who granted role
+select current_role();
+select get_ddl('function','non_secure_udf()');
+select get_ddl('function','secure_js_udf()');
+
+------return null on null input property in user defined function
+
+
+-----How to use check inbuilt user defined functions in Snowflake
+-- 
+show functions;
+
+
+-- how many javascript or sql
+select  "language", count(1) from table(result_scan('01b00a61-3201-f310-0001-7cfa00048222')) t 
+where "is_builtin" = 'Y'
+group by "language";
+
+--how many ansi compatible functions
+select  "is_ansi", count(1) from table(result_scan('01b00a61-3201-f310-0001-7cfa00048222')) t 
+where "is_builtin" = 'Y'
+group by "is_ansi";
+
+
+-- how many aggregated
+select  "is_aggregate", count(1) from table(result_scan('01b00a61-3201-f310-0001-7cfa00048222')) t 
+where "is_builtin" = 'Y'
+group by "is_aggregate";
+
+-- how many system functions
+select  "name","is_aggregate" , "is_ansi","is_table_function","valid_for_clustering",
+"arguments", "description"
+from table(result_scan('01b00a61-3201-f310-0001-7cfa00048222')) t 
+where "is_builtin" = 'Y' and "name" like 'SYSTEM$%'
+order by "is_ansi";
+-- there are total 40 system functions.
+
+
+-- valid for clustering
+-- how many system functions
+select  "name","is_aggregate" , "is_ansi","is_table_function","valid_for_clustering",
+"arguments", "description"
+from table(result_scan('01b00a61-3201-f310-0001-7cfa00048222')) t 
+where "is_builtin" = 'Y' and "valid_for_clustering" = 'Y';
+-- if this flag is true.. 
+-- True if the UDF can be used in a CLUSTER BY expression
+
+-- if you have not see my very important video on cluster .. request you to watch
+-- https://youtu.be/UNBysn1M9Vg (Ch-13 in this playlist)
+
+
+
+show functions like 'UPPER';
+-- it is builtin, takes one arg and return float
+-- there is two functions with same name
+-- it is aggregated function and it is ansi standard also
+
+-- lets try to desc it
+desc function UPPER(VARCHAR);
+-- you can't desc the system function
+
+-- can I see the ddl
+select get_ddl('function','UPPER(VARCHAR)');
+
+-- Can I creat a function with same name
+create or replace function UPPER(txt VARCHAR)
+returns string 
+language sql
+comment = 'trying to create a system function'
+as
+$$
+    select 'upper-txt'
+$$;
+
+show functions like 'UPPER';
+
+
+select *  from table(information_schema.task_history()) where name ='TASK_L1_A' order by scheduled_time;
+
+
+------Table User Defined Function in Snowflake SQLs
+
+
+
+
+------How to use function overloading in Snowflake UDFs
+create or replace function add_numbers(x number, y number)
+    returns number
+    as
+    $$ 
+      select x+y
+    $$;
+
+create or replace function add_numbers(x varchar, y varchar)
+returns varchar
+as
+$$
+    select x||y
+$$;
+    
+    
+select add_numbers(5,5),add_numbers('5','5');
+
+----------How to write java user defined function in Snowflake
+class MyJavaUDF {
+
+    private double x;
+
+    // Constructor
+    public MyJavaUDF()  {
+        x = Math.random();
+    }
+
+    // Handler
+    public double myHandler() {
+        return x;
+    }
+
+    public static void main(String [] args){
+        MyJavaUDF mc = new MyJavaUDF();
+        System.out.println(mc.myHandler());
+    }
+}
+
+-- lets list if my jar is available or not
+list @~;
+
+create or replace function my_java_udf()
+    returns double
+    language java
+    imports = ('@~/java-udf/MyUDF.jar')
+    handler = 'MyJavaUDF.myHandler';
+    
+desc function my_java_udf();
+
+select my_java_udf(),my_java_udf(),my_java_udf();
+
+select my_java_udf()
+union all
+select my_java_udf();
+
+show functions like 'MY_JAVA%';
+  

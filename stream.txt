@@ -97,5 +97,248 @@ select * from customer;
 select * from customer_stream;
 select * from customer_stream_02;
 
-----------
+---------- how append only stream works
+
+create or replace  table customer_append_only (
+    customer_append_only_id int,
+    salutation varchar,
+    first_name varchar,
+    last_name varchar,
+    birth_day int,
+    birth_month int,
+    birth_year int,
+    birth_country varchar,
+    email_address varchar,
+    cust_status varchar
+) comment ='this is simple customer_append_only table';
+
+insert into customer_append_only (customer_append_only_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(101,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(102,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive'),
+(103,'Mr.', 'Cust-3','LName-3',21,2,1998,'UK','cust-3.lname-3@gmail.com','Blocked'),
+(104,'Mr.', 'Cust-4','LName-4',19,9,1997,'USA','cust-4.lname-4@gmail.com','Active'),
+(105,'Mr.', 'Cust-5','LName-5',11,3,1997,'Canada','cust-5.lname-5@gmail.com','Unknown');
+
+-- lets validate the data
+select * from customer_append_only;
+
+create or replace stream append_only_stream on table customer_append_only append_only=true;
+
+select * from append_only_stream;
+
+--lets insert 2 records
+insert into customer_append_only (customer_append_only_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(106,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(107,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive');
+
+select * from customer_append_only;
+select * from append_only_stream;
+
+--deleting a customer_append_only
+delete from customer_append_only where customer_append_only_id=101;
+
+select * from customer_append_only;
+select * from append_only_stream;;
+
+--updating one record
+update customer_append_only
+set cust_status='Active'
+where customer_append_only_id=102;
+
+select * from customer_append_only;
+select * from append_only_stream;
+
+show streams;
+
+--- creating streams on transient table
+
+create or replace  transient table customer_transient (
+    customer_transient_id int,
+    salutation varchar,
+    first_name varchar,
+    last_name varchar,
+    birth_day int,
+    birth_month int,
+    birth_year int,
+    birth_country varchar,
+    email_address varchar,
+    cust_status varchar
+) comment ='this is simple customer_transient table';
+
+insert into customer_transient (customer_transient_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(101,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(102,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive'),
+(103,'Mr.', 'Cust-3','LName-3',21,2,1998,'UK','cust-3.lname-3@gmail.com','Blocked'),
+(104,'Mr.', 'Cust-4','LName-4',19,9,1997,'USA','cust-4.lname-4@gmail.com','Active'),
+(105,'Mr.', 'Cust-5','LName-5',11,3,1997,'Canada','cust-5.lname-5@gmail.com','Unknown');
+
+-- lets validate the data
+select * from customer_transient;
+
+create or replace stream transient_stream on table customer_transient;
+
+select * from transient_stream;
+
+--lets insert 2 records
+insert into customer_transient (customer_transient_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(106,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(107,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive');
+
+select * from customer_transient;
+select * from transient_stream;
+
+--deleting a customer_transient
+delete from customer_transient where customer_transient_id=101;
+
+select * from customer_transient;
+select * from transient_stream;;
+
+--updating one record
+update customer_transient
+set cust_status='Active'
+where customer_transient_id=102;
+
+select * from customer_transient;
+select * from transient_stream;
+
+show streams;
+
+------------- streams and time travel features
+create or replace   table customer_time_travel (
+    customer_time_travel_id int,
+    salutation varchar,
+    first_name varchar,
+    last_name varchar,
+    birth_day int,
+    birth_month int,
+    birth_year int,
+    birth_country varchar,
+    email_address varchar,
+    cust_status varchar
+) comment ='this is simple customer_time_travel table'
+data_retention_time_in_days=0;
+
+insert into customer_time_travel (customer_time_travel_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(101,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(102,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive'),
+(103,'Mr.', 'Cust-3','LName-3',21,2,1998,'UK','cust-3.lname-3@gmail.com','Blocked'),
+(104,'Mr.', 'Cust-4','LName-4',19,9,1997,'USA','cust-4.lname-4@gmail.com','Active'),
+(105,'Mr.', 'Cust-5','LName-5',11,3,1997,'Canada','cust-5.lname-5@gmail.com','Unknown');
+
+-- lets validate the data
+select * from customer_time_travel;
+
+create or replace stream customer_zero_tt_stream on table customer_time_travel;
+
+show streams;
+
+--lets insert 2 records
+insert into customer_time_travel (customer_time_travel_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(106,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(107,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive');
+
+select * from customer_time_travel;
+
+--deleting a customer_time_travel
+delete from customer_time_travel where customer_time_travel_id=101;
+
+--updating one record
+update customer_time_travel
+set cust_status='Active'
+where customer_time_travel_id=102;
+
+select * from customer_time_travel;
+select * from customer_zero_tt_stream;
+---data retention does not impact stream , it has its own data retention of 14 days
+
+-------- Lets consume data from stream table
+create or replace   table customer_raw (
+    customer_raw_id int,
+    salutation varchar,
+    first_name varchar,
+    last_name varchar,
+    birth_day int,
+    birth_month int,
+    birth_year int,
+    birth_country varchar,
+    email_address varchar,
+    cust_status varchar
+) comment ='this is simple customer_raw table';
+
+create or replace   table customer_dim (
+    customer_raw_id int,
+    salutation varchar,
+    first_name varchar,
+    last_name varchar,
+    birth_day int,
+    birth_month int,
+    birth_year int,
+    birth_country varchar,
+    email_address varchar,
+    cust_status varchar
+) comment ='this is simple customer_raw table';
+
+insert into customer_raw (customer_raw_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(101,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(102,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive'),
+(103,'Mr.', 'Cust-3','LName-3',21,2,1998,'UK','cust-3.lname-3@gmail.com','Blocked'),
+(104,'Mr.', 'Cust-4','LName-4',19,9,1997,'USA','cust-4.lname-4@gmail.com','Active'),
+(105,'Mr.', 'Cust-5','LName-5',11,3,1997,'Canada','cust-5.lname-5@gmail.com','Unknown');
+
+-- lets validate the data
+select * from customer_raw;
+
+---lets insert all data from raw table to dim table
+insert into customer_dim select * from customer_raw;
+
+select * from customer_dim;
+
+create or replace stream customer_raw_stream on table customer_raw;
+
+--lets insert 2 records
+insert into customer_raw (customer_raw_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status )
+values 
+(106,'Mr.', 'Cust-1','LName-1',10,12,2000,'Japan','cust-1.lname-1@gmail.com','Active'),
+(107,'Mr.', 'Cust-2','LName-2',27,11,1999,'USA','cust-2.lname-2@gmail.com','Inactive');
+
+--deleting a customer_raw
+delete from customer_raw where customer_raw_id=101;
+
+--updating one record
+update customer_raw
+set cust_status='Active'
+where customer_raw_id=102;
+
+select * from customer_raw_stream;
+
+-- to consume stream data, your sql statement should be part of transaction like below or part of stored procedure
+
+-- start a  transaction
+begin transaction
+
+--consume data
+insert into customer_dim
+select 
+customer_raw_id ,salutation ,first_name ,last_name ,birth_day ,birth_month ,birth_year ,birth_country ,email_address,cust_status 
+from customer_raw_stream
+where metadata$action='INSERT' AND metadata$isupdate='FALSE';
+;
+
+commit ;
+
+select * from customer_raw;
+select * from customer_dim;
+select * from customer_raw_stream;
+-- no results in stream offset got changed , how ?
+
+----- stream with external table
+--Need to work on script
+
 

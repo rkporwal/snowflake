@@ -1,0 +1,206 @@
+create database CH18_DB;
+create schema CH18_SCHEMA;
+
+select current_version();
+
+create table customer_dim(
+custid number,
+insert_time timestamp default current_timestamp()
+)
+comment='my customer dimension table';
+
+select * from customer_dim;
+
+---lets generate sequence values
+create or replace sequence seq_01
+start =1
+increment=1
+comment='this is sequence';
+
+show sequences;
+
+-- now create task named task_01
+create or replace task task_01
+warehouse=compute_wh
+schedule='1 minute'
+as 
+insert into customer_dim(custid)
+values(seq_01.nextval)
+;
+
+-- You can assign execute task to any role and 
+-- that role can alter the task to resume or suspend
+use role accountadmin;
+grant execute task, execute managed task on account to role sysadmin;
+
+select * from customer_dim;
+
+show tasks;
+
+
+desc task task_01;
+
+-- resume task
+alter task task_01 resume;
+
+--we can alter task and change attributes associate with it
+alter task task_01 set warehouse='compute_wh';
+alter task task_01 set schedule='2 minute';
+
+select * from customer_dim;
+----------------------------------------------------------------------------------------------
+--      Task clonning
+----------------------------------------------------------------------------------------------
+
+---lets clone task
+create or replace task task_01_clone clone task_01;
+-- the task will be suspended and it has to be resumed
+
+--how to check if it is running
+select * from table(information_schema.task_history()) where name='TASK_01' order by scheduled_time ;
+
+--lets suspend task
+alter task task_01 suspend;
+
+--How to interact with task - SQL Example
+-- Lets show tasks
+show tasks;
+desc task task_01;
+
+-------------------------------------------------------------------------------------- 
+--Task Scheduling
+--------------------------------------------------------------------------------------
+create or replace task Invalid_Schedual_Parameter
+warehouse=compute_wh
+schedule='60 second'
+as 
+insert into customer_dim(custid)
+values(seq_01.nextval)
+;
+
+create or replace task Invalid_Schedual_Parameter
+warehouse=compute_wh
+schedule='1 hour'
+as 
+insert into customer_dim(custid)
+values(seq_01.nextval)
+;
+
+create or replace task Invalid_Schedual_Parameter
+warehouse=compute_wh
+schedule='0.5 minute'
+as 
+insert into customer_dim(custid)
+values(seq_01.nextval)
+;
+
+create or replace task Invalid_Schedual_Parameter
+warehouse=compute_wh
+schedule='-1 minute'
+as 
+insert into customer_dim(custid)
+values(seq_01.nextval)
+;
+--maximum number is 11520 minutes 
+
+--Task History Table Function - SQL Example
+-- How to check if it is running
+-- task_history() is a table function
+select *  from table(information_schema.task_history()) where name ='TASK_01' order by scheduled_time;
+
+-----------------------------------------------------------------------------------
+--Calling Stored Procedure from Task - SQL Example
+-----------------------------------------------------------------------------------
+
+---- creating a customer table, having a column called task name
+create or replace table customer_sproc(
+        id integer autoincrement,
+        task_name varchar,
+        insert_time timestamp default current_timestamp(),
+        first_name varchar,
+        last_name varchar, 
+        date_of_birth date,
+        active_flag boolean,
+        city varchar
+
+) comment = 'my customer table for task with stored proc demo';
+
+-- here is my stored procedure with single insert statement.
+create or replace procedure insert_row_in_customer_sproc()
+  returns boolean 
+  language javascript
+  execute as caller
+  as
+  $$
+    sql_insert_command = `insert into customer_sproc (task_name,first_name,last_name,date_of_birth,active_flag,city)   
+                        values ('TASK_WITH_SPROC','F-Name','L-Name',current_date(),TRUE,'My-City');` 
+    result_insert = snowflake.execute(
+    { 
+      sqlText: sql_insert_command   
+    }); 
+    return result_insert;
+  $$
+;
+
+
+-- call stored procedure to check if it runs 
+call insert_row_in_customer_sproc();
+
+-- task calling a stored procedure
+create or replace task task_with_sproc
+    warehouse = compute_wh
+    schedule = '1 minute'
+        as
+    call insert_row_in_customer_sproc();
+
+-- resume the task so it becomes functional
+alter task task_with_sproc resume;
+    
+-- check how task entry looks like
+show tasks like 'TASK_WITH_SPROC';    
+
+-- lets check task history table function
+select *  from table(information_schema.task_history()) 
+    where name ='TASK_WITH_SPROC' 
+    order by scheduled_time;    
+
+select * from customer_sproc;    
+
+alter task TASK_WITH_SPROC suspend;
+
+------------------------------------------------------------------------------------------
+-- Using CRON parameter
+------------------------------------------------------------------------------------------
+
+-- below task run on every sunday
+-- below task run on every 5th munute on sunday
+-- below task run every 5th minute between 9 hours to 17 hours on every sunday
+
+
+-----------------------------------------------------------------------------------------
+--- serverless task
+-------------------------------------------------------------------------------------------
+
+-- below warehouse does not exists
+create or replace task task_non_existance_wh
+    warehouse = compute_does_not_exists
+    schedule = '1 minute'
+        as
+    call insert_row_in_customer_sproc();
+
+
+create or replace task task_sf_provided_wh
+    user_task_managed_initial_warehouse_size ='XSMALl'
+    schedule = '1 minute'
+        as
+    call insert_row_in_customer_sproc();
+
+
+desc task task_sf_provided_wh;
+    
+---------------------------------------------------------------------------------------------
+--- 3 Level task tree example
+---------------------------------------------------------------------------------------------
+
+    
+
