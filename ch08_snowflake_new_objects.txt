@@ -1,0 +1,117 @@
+create schema my_schema_08;
+use schema my_schema_08;
+
+//this is how we can use it
+create or replace sequence seq_01 start=1 increment=1 comment='this is trail sequence';
+create or replace sequence seq_02 start=1 increment=2 comment='this is trail sequence';
+create or replace sequence seq_03 start=0 increment=-2 comment='this is trail sequence';
+
+create or replace table my_tbl_01(i integer);
+
+//how to get next values
+select seq_01.nextval,seq_02.nextval,seq_03.nextval;
+
+
+create or replace table my_tbl_01(
+pk int autoincrement,
+seq01 int default seq_01.nextval,
+seq02 int default seq_02.nextval,
+seq int default seq_03.nextval,
+msg string
+);
+
+//lets describe table
+desc table my_tbl_01;
+select get_ddl ('table','my_tbl_01');
+
+insert into my_tbl_01(msg) values ('msg-1');
+
+select * from my_tbl_01;
+
+show sequences;
+show sequences like '%01';
+
+select get_ddl('sequence','seq_03');
+
+//==============================================
+--File Format
+--csv
+--orc
+--parquet
+
+create or replace table my_parquet(
+my_data variant
+);
+
+select * from my_parquet; -- G:\Learning\Snowflake\cities.parquet loaded using web UI
+
+//query individual dataset
+select  c.key,c.value from my_parquet,
+lateral flatten(input=>my_data)c;
+--each row has two columns so there are 6 records for 3 row
+
+--============================= 
+--Stage object
+
+create or replace table my_parquet_tbl(
+my_data variant
+);
+
+create or replace stage parquet_stage;
+--PUT file://G:\Learning\Snowflake\cities.parquet @my_db.my_schema_08.parquet_stage;
+
+list @parquet_stage;
+
+create or replace file format parquet_ff
+type=parquet
+;
+
+copy into my_parquet_tbl
+from @parquet_stage
+file_format=parquet_ff
+ON_ERROR=continue
+;
+
+select * from my_parquet_tbl;
+
+//======================== Integration object ===================
+use role accountadmin;
+
+create or replace storage integration s3_integration
+type=external_stage
+storage_provider=s3
+storage_aws_role_arn='arn:aws:iam:0000:role/myrole'
+enabled=true
+storage_allowed_locations=('');
+
+show integrations;
+
+//=========================== PIPE =================================
+create pipe my_pipe
+as 
+copy into my_parquet_tbl
+from @parquet_stage
+file_format=parquet_ff
+ON_ERROR=continue;
+
+show pipes; 
+select get_ddl('pipe','my_pipe');
+
+--how to check if pipe is running or not
+select system$pipe_status('my_pipe');
+
+//============================ Stream objects ===========
+select * from SF_TUTS.PUBLIC.EMP_BASIC;
+
+create or replace stream emp_basic_stream on table SF_TUTS.PUBLIC.EMP_BASIC;
+
+//================= TASK =====================
+create or replace task my_task
+warehouse=demo_xs_wh
+schedule='1 minute'
+as
+select current_date;
+
+show tasks;
+
+//================= Resource Monitor ================
